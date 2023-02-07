@@ -1,6 +1,6 @@
 ﻿using System.Reflection;
 using Dapper;
-using DataAccess;
+using DataAccess.Services;
 using DatabaseMigrator.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,12 +18,11 @@ public static class MigratorExt {
 public class Migrator {
     private const string APPLIED_MIGRATION_SCRIPT_SQL = 
         @"IF OBJECT_ID(N'dbo.AppliedMigrationScript', 'U') IS NULL
-           CREATE TABLE dbo.AppliedMigrationScript (
-              MigrationScript_Id int NOT NULL,
-              Applied smalldatetime NOT NULL DEFAULT (getutcdate()),
-           CONSTRAINT PK_AppliedMigrationScript_MigrationScript_Id PRIMARY KEY CLUSTERED (MigrationScript_Id);
-
-         SELECT MigrationScript_Id FROM AppliedMigrationScript";
+   CREATE TABLE dbo.AppliedMigrationScript (
+      MigrationScript_Id int NOT NULL,
+      Applied smalldatetime NOT NULL DEFAULT (getutcdate()),
+   CONSTRAINT PK_AppliedMigrationScript_MigrationScript_Id PRIMARY KEY CLUSTERED (MigrationScript_Id));
+SELECT MigrationScript_Id FROM AppliedMigrationScript";
     // ReSharper disable InconsistentNaming
     private readonly Version VERSION_MIN = new ("0.0");
     private readonly Version VERSION_MAX = new ("999.999.999");
@@ -47,8 +46,9 @@ public class Migrator {
         var migratorConnectionString = config["ConnectionStrings:MigratorConnection"] ?? throw new InvalidDataException("Migrator ConnectionString is not set");
         var migConnectionManager = new DbConnectionManager(migratorConnectionString);
         
+        //NOTE: Need TryCatch - ti ensue we can connect to the Migration Database
         using var migConn = migConnectionManager.CreateConnection();
-        var scripts = (await migConn.QueryAsync<MigrationScript>("SELECT * FROM MigrationScript WHERE Id NOT IN @appliedIds ORDER by [Order]", new { appliedIds }).ConfigureAwait(false)).ToList();
+        var scripts = (await migConn.QueryAsync<MigrationScript>("SELECT * FROM MigrationScript WHERE Id NOT IN @appliedIds ORDER by ScriptOrder", new { appliedIds }).ConfigureAwait(false)).ToList();
         if (!scripts.Any()) return true;
                   
         using var transaction = conn.BeginTransaction();

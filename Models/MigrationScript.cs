@@ -1,4 +1,4 @@
-﻿namespace DatabaseMigrator.Models; 
+﻿namespace DatabaseMigrator; 
 
 public class MigrationScript {
     public int Id { get; set; }

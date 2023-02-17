@@ -1,7 +1,6 @@
 ﻿using System.Reflection;
 using Dapper;
-using DataAccess.Services;
-using DatabaseMigrator.Models;
+using DataAccess;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

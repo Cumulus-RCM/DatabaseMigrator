@@ -1,18 +1,8 @@
-﻿using System.Reflection;
-using Dapper;
+﻿using Dapper;
 using DataAccess;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DatabaseMigrator;
-
-public static class MigratorExt {
-    public static Task<bool> ApplyDatabaseMigrationsAsync(this IServiceProvider serviceProvider ) {
-        var migrator = serviceProvider.GetService<Migrator>() ?? throw new Exception("Unable to create Migrator.");
-        return migrator.UpgradeDatabaseAsync(Assembly.GetEntryAssembly()?.GetName().Version);
-    }
-}
 
 public class Migrator {
     private const string APPLIED_MIGRATION_SCRIPT_SQL = 
@@ -27,27 +17,18 @@ SELECT MigrationScript_Id FROM AppliedMigrationScript";
     private readonly Version VERSION_MAX = new ("999.999.999");
     // ReSharper restore InconsistentNaming
 
-    private readonly IConfiguration config;
+    private readonly DbConnectionManager connectionManager;
     private readonly ILogger<Migrator> logger;
 
-    public Migrator(IConfiguration config, ILogger<Migrator> logger) {
-        this.config = config;
-        this.logger = logger;
+    public Migrator(DbConnectionManager connectionManager, ILoggerFactory loggerFactory) {
+        this.connectionManager = connectionManager;
+        this.logger = loggerFactory.CreateLogger<Migrator>();
     }
 
-    public async Task<bool> UpgradeDatabaseAsync(Version? appVersion) {
-        var connectionString = config["ConnectionStrings:DefaultConnection"] ?? throw new InvalidDataException("ConnectionString is not set");
-        var cm = new DbConnectionManager(connectionString);
-        
-        using var conn = cm.CreateConnection();
+    public async Task<bool> UpgradeDatabaseAsync(Version? appVersion, Stream migrationsStream) {
+        using var conn = connectionManager.CreateConnection();
         var appliedIds = await conn.QueryAsync<int>(APPLIED_MIGRATION_SCRIPT_SQL).ConfigureAwait(false);
-
-        var migratorConnectionString = config["ConnectionStrings:MigratorConnection"] ?? throw new InvalidDataException("Migrator ConnectionString is not set");
-        var migConnectionManager = new DbConnectionManager(migratorConnectionString);
-        
-        //NOTE: Need TryCatch - ti ensue we can connect to the Migration Database
-        using var migConn = migConnectionManager.CreateConnection();
-        var scripts = (await migConn.QueryAsync<MigrationScript>("SELECT * FROM MigrationScript WHERE Id NOT IN @appliedIds ORDER by ScriptOrder", new { appliedIds }).ConfigureAwait(false)).ToList();
+        var scripts = await getScriptsAsync(migrationsStream, appliedIds).ConfigureAwait(false);
         if (!scripts.Any()) return true;
                   
         using var transaction = conn.BeginTransaction();
@@ -75,5 +56,10 @@ SELECT MigrationScript_Id FROM AppliedMigrationScript";
                 : new Version(migrationScript.MaximumApplicationVersion);
             return appVersion > minApplyVersion && appVersion <= maxApplyVersion;
         }
+    }
+
+    private static async Task<ICollection<MigrationScript>> getScriptsAsync(Stream migrationsStream, IEnumerable<int> appliedIds) {
+        var scripts = await MigrationScripts.GetScriptsAsync(migrationsStream).ConfigureAwait(false);
+        return scripts.Where(s=> appliedIds.All( a=> a != s.Id)).ToList();
     }
 }

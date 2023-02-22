@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace DatabaseMigrator;
 
 public class Migrator {
+    private readonly DbConnectionManager connectionManager;
+    private readonly ILogger<Migrator> logger;
     private const string APPLIED_MIGRATION_SCRIPT_SQL = 
         @"IF OBJECT_ID(N'dbo.AppliedMigrationScript', 'U') IS NULL
    CREATE TABLE dbo.AppliedMigrationScript (
@@ -12,17 +14,16 @@ public class Migrator {
       AppliedOn smalldatetime NOT NULL DEFAULT (getutcdate()),
    CONSTRAINT PK_AppliedMigrationScript_ScriptName PRIMARY KEY CLUSTERED (ScriptName));
 SELECT ScriptName FROM AppliedMigrationScript";
-    private readonly DbConnectionManager connectionManager;
-    private readonly ILogger<Migrator> logger;
 
     public Migrator(DbConnectionManager connectionManager, ILoggerFactory loggerFactory) {
         this.connectionManager = connectionManager;
         this.logger = loggerFactory.CreateLogger<Migrator>();
     }
 
-    public async Task<bool> UpgradeDatabaseAsync(string path) {
+    public async Task<bool> UpgradeDatabaseAsync() {
         using var conn = connectionManager.CreateConnection();
         var appliedScriptNames = await conn.QueryAsync<string>(APPLIED_MIGRATION_SCRIPT_SQL).ConfigureAwait(false);
+        var path = Path.Combine( AppDomain.CurrentDomain.BaseDirectory, "MigrationScripts");
         var scriptNames = getScripts(path, appliedScriptNames.ToList());
         if (!scriptNames.Any()) return true;
                   

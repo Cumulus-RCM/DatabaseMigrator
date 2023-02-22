@@ -8,15 +8,10 @@ public class Migrator {
     private const string APPLIED_MIGRATION_SCRIPT_SQL = 
         @"IF OBJECT_ID(N'dbo.AppliedMigrationScript', 'U') IS NULL
    CREATE TABLE dbo.AppliedMigrationScript (
-      MigrationScript_Id int NOT NULL,
-      Applied smalldatetime NOT NULL DEFAULT (getutcdate()),
-   CONSTRAINT PK_AppliedMigrationScript_MigrationScript_Id PRIMARY KEY CLUSTERED (MigrationScript_Id));
-SELECT MigrationScript_Id FROM AppliedMigrationScript";
-    // ReSharper disable InconsistentNaming
-    private readonly Version VERSION_MIN = new ("0.0");
-    private readonly Version VERSION_MAX = new ("999.999.999");
-    // ReSharper restore InconsistentNaming
-
+      ScriptName varchar(500) NOT NULL,
+      AppliedOn smalldatetime NOT NULL DEFAULT (getutcdate()),
+   CONSTRAINT PK_AppliedMigrationScript_ScriptName PRIMARY KEY CLUSTERED (ScriptName));
+SELECT ScriptName FROM AppliedMigrationScript";
     private readonly DbConnectionManager connectionManager;
     private readonly ILogger<Migrator> logger;
 
@@ -25,41 +20,35 @@ SELECT MigrationScript_Id FROM AppliedMigrationScript";
         this.logger = loggerFactory.CreateLogger<Migrator>();
     }
 
-    public async Task<bool> UpgradeDatabaseAsync(Version? appVersion, Stream migrationsStream) {
+    public async Task<bool> UpgradeDatabaseAsync(string path) {
         using var conn = connectionManager.CreateConnection();
-        var appliedIds = await conn.QueryAsync<int>(APPLIED_MIGRATION_SCRIPT_SQL).ConfigureAwait(false);
-        var scripts = await getScriptsAsync(migrationsStream, appliedIds).ConfigureAwait(false);
-        if (!scripts.Any()) return true;
+        var appliedScriptNames = await conn.QueryAsync<string>(APPLIED_MIGRATION_SCRIPT_SQL).ConfigureAwait(false);
+        var scriptNames = getScripts(path, appliedScriptNames.ToList());
+        if (!scriptNames.Any()) return true;
                   
         using var transaction = conn.BeginTransaction();
+        var currentScriptName = "";
         try {
-            foreach (var script in scripts.Where(shouldApplyScript)) {
-                await conn.ExecuteAsync(script.Script, transaction:transaction).ConfigureAwait(false);
-                await conn.ExecuteAsync("INSERT INTO AppliedMigrationScript (Script_Id) VALUES (@scriptId)", new {scriptId = script.Id}, transaction).ConfigureAwait(false);
-                logger.LogInformation($"Applied Database Migration Script (Id:{script.Id}) {script.Description}");
+            foreach (var scriptName in scriptNames) {
+                currentScriptName = scriptName;
+                await conn.ExecuteAsync(scriptName, transaction:transaction).ConfigureAwait(false);
+                await conn.ExecuteAsync("INSERT INTO AppliedMigrationScript (ScriptName) VALUES (@scriptName)", new {scriptName}, transaction).ConfigureAwait(false);
+                logger.LogInformation($"Applied Database Migration Script: {scriptName}.");
             }
             transaction.Commit();
             return true;
         }
         catch (Exception e) {
             transaction.Rollback();
-            logger.LogError(e, "Error Updating Database Schema.");
+            logger.LogError(e, $"Error Applying Migration Script {currentScriptName}.");
             return false;
         }
+    }
 
-        bool shouldApplyScript(MigrationScript migrationScript) {
-            var minApplyVersion = migrationScript.MinimumApplicationVersion is null
-                ? VERSION_MIN
-                : new Version(migrationScript.MinimumApplicationVersion);
-            var maxApplyVersion = migrationScript.MaximumApplicationVersion is null 
-                ? VERSION_MAX
-                : new Version(migrationScript.MaximumApplicationVersion);
-            return appVersion > minApplyVersion && appVersion <= maxApplyVersion;
+    private static ICollection<string> getScripts(string path, ICollection<string> appliedScriptNames) {
+        var scriptNames = MigrationScripts.GetScripts(path);
+        return scriptNames
+            .Where(scriptName => appliedScriptNames.All(appliedScriptName => appliedScriptName != scriptName))
+            .ToList();
         }
-    }
-
-    private static async Task<ICollection<MigrationScript>> getScriptsAsync(Stream migrationsStream, IEnumerable<int> appliedIds) {
-        var scripts = await MigrationScripts.GetScriptsAsync(migrationsStream).ConfigureAwait(false);
-        return scripts.Where(s=> appliedIds.All( a=> a != s.Id)).ToList();
-    }
 }

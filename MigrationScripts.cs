@@ -3,6 +3,11 @@
 namespace DatabaseMigrator;
 
 public class MigrationScripts {
+    public static ICollection<string> GetScripts(string path) {
+        var files = Directory.EnumerateFiles(path, "*.sql");
+        return files.OrderBy(filename => filename).Select(File.ReadAllText).ToList();
+    }
+
     public static async Task<IEnumerable<MigrationScript>> GetScriptsAsync(Stream migrationsStream) {
         if (migrationsStream.Length < 10) return Enumerable.Empty<MigrationScript>();
         var scripts = await JsonSerializer.DeserializeAsync<IEnumerable<MigrationScript>>(migrationsStream).ConfigureAwait(false);

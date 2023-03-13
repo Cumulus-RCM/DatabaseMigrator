@@ -24,17 +24,17 @@ SELECT ScriptName FROM AppliedMigrationScript";
         using var conn = connectionManager.CreateConnection();
         var appliedScriptNames = await conn.QueryAsync<string>(APPLIED_MIGRATION_SCRIPT_SQL).ConfigureAwait(false);
         var path = Path.Combine( AppDomain.CurrentDomain.BaseDirectory, "MigrationScripts");
-        var scriptNames = getScripts(path, appliedScriptNames.ToList());
-        if (!scriptNames.Any()) return true;
+        var migrationScripts = getScripts(path, appliedScriptNames.ToList());
+        if (!migrationScripts.Any()) return true;
                   
         using var transaction = conn.BeginTransaction();
         var currentScriptName = "";
         try {
-            foreach (var scriptName in scriptNames) {
-                currentScriptName = scriptName;
-                await conn.ExecuteAsync(scriptName, transaction:transaction).ConfigureAwait(false);
-                await conn.ExecuteAsync("INSERT INTO AppliedMigrationScript (ScriptName) VALUES (@scriptName)", new {scriptName}, transaction).ConfigureAwait(false);
-                logger.LogInformation($"Applied Database Migration Script: {scriptName}.");
+            foreach (var migrationScript in migrationScripts) {
+                currentScriptName = migrationScript.scriptName;
+                await conn.ExecuteAsync(migrationScript.script, transaction:transaction).ConfigureAwait(false);
+                await conn.ExecuteAsync("INSERT INTO AppliedMigrationScript (ScriptName) VALUES (@scriptName)", new {migrationScript.scriptName}, transaction).ConfigureAwait(false);
+                logger.LogInformation($"Applied Database Migration Script: {migrationScript.scriptName}.");
             }
             transaction.Commit();
             return true;
@@ -46,10 +46,10 @@ SELECT ScriptName FROM AppliedMigrationScript";
         }
     }
 
-    private static ICollection<string> getScripts(string path, ICollection<string> appliedScriptNames) {
-        var scriptNames = MigrationScripts.GetScripts(path);
-        return scriptNames
-            .Where(scriptName => appliedScriptNames.All(appliedScriptName => appliedScriptName != scriptName))
+    private static ICollection<(string scriptName, string script)> getScripts(string path, ICollection<string> appliedScriptNames) {
+        var scripts = MigrationScripts.GetScripts(path);
+        return scripts
+            .Where(s => appliedScriptNames.All(appliedScriptName => appliedScriptName != s.scriptName))
             .ToList();
         }
 }

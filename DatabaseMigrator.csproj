@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.0.123" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,7 +24,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DataAccess\DataAccess.Shared\DataAccess.Shared.csproj" />
-    <ProjectReference Include="..\DataAccess\DataAccess\DataAccess.csproj" />
+    <ProjectReference Include="..\BaseLib\BaseLib.csproj" />
   </ItemGroup>
 </Project>

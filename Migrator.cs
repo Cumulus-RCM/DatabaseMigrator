@@ -1,4 +1,5 @@
-﻿using Dapper;
+﻿using BaseLib;
+using Dapper;
 using DataAccess;
 using Microsoft.Extensions.Logging;
 

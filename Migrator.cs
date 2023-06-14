@@ -7,6 +7,7 @@ namespace DatabaseMigrator;
 public class Migrator {
     private readonly DbConnectionManager connectionManager;
     private readonly ILogger<Migrator> logger;
+    // ReSharper disable once InconsistentNaming
     private const string APPLIED_MIGRATION_SCRIPT_SQL = 
         @"IF OBJECT_ID(N'dbo.AppliedMigrationScript', 'U') IS NULL
    CREATE TABLE dbo.AppliedMigrationScript (

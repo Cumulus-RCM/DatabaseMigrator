@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace DatabaseMigrator;
 
 public class Migrator {
-    private readonly DbConnectionManager connectionManager;
+    private readonly IDbConnectionManager connectionManager;
     private readonly ILogger<Migrator> logger;
     // ReSharper disable once InconsistentNaming
     private const string APPLIED_MIGRATION_SCRIPT_SQL = 
@@ -16,7 +16,7 @@ public class Migrator {
    CONSTRAINT PK_AppliedMigrationScript_ScriptName PRIMARY KEY CLUSTERED (ScriptName));
 SELECT ScriptName FROM AppliedMigrationScript";
 
-    public Migrator(DbConnectionManager connectionManager, ILoggerFactory loggerFactory) {
+    public Migrator(IDbConnectionManager connectionManager, ILoggerFactory loggerFactory) {
         this.connectionManager = connectionManager;
         this.logger = loggerFactory.CreateLogger<Migrator>();
     }

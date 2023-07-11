@@ -33,10 +33,11 @@ SELECT Script_Id FROM AppliedMigrationScript";
         if (!migrationScripts.Any()) return true;
 
         using var transaction = conn.BeginTransaction();
-        var currentScriptName = "";
+        MigrationScript? currentScript = null;
         try {
            
             foreach (var migrationScript in migrationScripts.Where(ms=>ms.IsActive).OrderBy(ms=>ms.ScriptOrder)) {
+                currentScript = migrationScript;
                 await conn.ExecuteAsync(migrationScript.Script, transaction: transaction).ConfigureAwait(false);
                 await conn.ExecuteAsync("INSERT INTO AppliedMigrationScript (Script_Id) VALUES (@Id)", new {migrationScript.Id}, transaction).ConfigureAwait(false);
                 logger.LogInformation($"Applied Database Migration Script: {migrationScript.Id}, {migrationScript.Description}.");
@@ -47,7 +48,7 @@ SELECT Script_Id FROM AppliedMigrationScript";
         }
         catch (Exception e) {
             transaction.Rollback();
-            logger.LogError(e, $"Error Applying Migration Script {currentScriptName}.");
+            logger.LogError(e, $"Error Applying Migration Script {currentScript?.Description}.");
             return false;
         }
     }

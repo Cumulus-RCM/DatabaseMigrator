@@ -38,7 +38,10 @@ SELECT Script_Id FROM AppliedMigrationScript";
            
             foreach (var migrationScript in migrationScripts.Where(ms=>ms.IsActive).OrderBy(ms=>ms.ScriptOrder)) {
                 currentScript = migrationScript;
-                await conn.ExecuteAsync(migrationScript.Script, transaction: transaction).ConfigureAwait(false);
+                foreach (var script in migrationScript.Script) {
+                    await conn.ExecuteAsync(script, transaction: transaction).ConfigureAwait(false);
+                }
+
                 await conn.ExecuteAsync("INSERT INTO AppliedMigrationScript (Script_Id) VALUES (@Id)", new {migrationScript.Id}, transaction).ConfigureAwait(false);
                 logger.LogInformation($"Applied Database Migration Script: {migrationScript.Id}, {migrationScript.Description}.");
             }

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DatabaseMigrator;
 
-public class Migrator {
+public class Migrator : IMigrator {
     private readonly IDbConnectionManager connectionManager;
     private readonly ILogger<Migrator> logger;
     // ReSharper disable once InconsistentNaming
@@ -43,7 +43,7 @@ SELECT Script_Id FROM AppliedMigrationScript";
                 }
 
                 await conn.ExecuteAsync("INSERT INTO AppliedMigrationScript (Script_Id) VALUES (@Id)", new {migrationScript.Id}, transaction).ConfigureAwait(false);
-                logger.LogInformation($"Applied Database Migration Script: {migrationScript.Id}, {migrationScript.Description}.");
+                logger.LogInformation("Applied Database Migration Script: {scriptId}, {scriptDescription}.", migrationScript.Id, migrationScript.Description);
             }
 
             transaction.Commit();
@@ -51,7 +51,7 @@ SELECT Script_Id FROM AppliedMigrationScript";
         }
         catch (Exception e) {
             transaction.Rollback();
-            logger.LogError(e, $"Error Applying Migration Script {currentScript?.Description}.");
+            logger.LogError(e, "Error Applying Migration Script {scriptDescription}.", currentScript?.Description);
             return false;
         }
     }

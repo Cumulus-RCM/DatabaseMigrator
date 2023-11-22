@@ -1,4 +1,6 @@
-﻿namespace DatabaseMigrator; 
+﻿using System;
+
+namespace DatabaseMigrator; 
 
 public class AppliedMigrationScript {
     public int MigrationScript_Id { get; set; }

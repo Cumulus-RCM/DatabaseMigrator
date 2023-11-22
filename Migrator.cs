@@ -10,9 +10,8 @@ using Microsoft.Extensions.Logging;
 
 namespace DatabaseMigrator;
 
-public class Migrator : IMigrator {
-    private readonly IDbConnectionManager connectionManager;
-    private readonly ILogger<Migrator> logger;
+public class Migrator(IDbConnectionManager manager, ILoggerFactory loggerFactory) : IMigrator {
+    private readonly ILogger<Migrator> logger = loggerFactory.CreateLogger<Migrator>();
     // ReSharper disable once InconsistentNaming
     private const string APPLIED_MIGRATION_SCRIPT_SQL = 
         @"IF OBJECT_ID(N'dbo.AppliedMigrationScript', 'U') IS NULL
@@ -22,14 +21,9 @@ public class Migrator : IMigrator {
    CONSTRAINT PK_AppliedMigrationScript PRIMARY KEY CLUSTERED (Script_Id));
 SELECT Script_Id FROM AppliedMigrationScript";
 
-    public Migrator(IDbConnectionManager connectionManager, ILoggerFactory loggerFactory) {
-        this.connectionManager = connectionManager;
-        this.logger = loggerFactory.CreateLogger<Migrator>();
-    }
-
     // ReSharper disable PossibleMultipleEnumeration
     public async Task<bool> UpgradeDatabaseAsync() {
-        using var conn = connectionManager.CreateConnection();
+        using var conn = manager.CreateConnection();
         var appliedScripts = await conn.QueryAsync<int>(APPLIED_MIGRATION_SCRIPT_SQL).ConfigureAwait(false);
         var path = Path.Combine( AppDomain.CurrentDomain.BaseDirectory, "MigrationScripts\\MigrationScripts.json");
         if (!File.Exists(path)) return true;

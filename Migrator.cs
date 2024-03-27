@@ -6,12 +6,11 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using BaseLib;
 using Dapper;
-using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace DatabaseMigrator;
 
-public class Migrator(IDbConnectionManager manager, ILoggerFactory loggerFactory) : IMigrator {
-    private readonly ILogger<Migrator> logger = loggerFactory.CreateLogger<Migrator>();
+public class Migrator(IDbConnectionManager manager) : IMigrator {
     // ReSharper disable once InconsistentNaming
     private const string APPLIED_MIGRATION_SCRIPT_SQL = 
         @"IF OBJECT_ID(N'dbo.AppliedMigrationScript', 'U') IS NULL
@@ -42,7 +41,7 @@ SELECT Script_Id FROM AppliedMigrationScript";
                 }
 
                 await conn.ExecuteAsync("INSERT INTO AppliedMigrationScript (Script_Id) VALUES (@Id)", new {migrationScript.Id}, transaction).ConfigureAwait(false);
-                logger.LogInformation("Applied Database Migration Script: {scriptId}, {scriptDescription}.", migrationScript.Id, migrationScript.Description);
+                Log.Information("Applied Database Migration Script: {scriptId}, {scriptDescription}.", migrationScript.Id, migrationScript.Description);
             }
 
             transaction.Commit();
@@ -50,7 +49,7 @@ SELECT Script_Id FROM AppliedMigrationScript";
         }
         catch (Exception e) {
             transaction.Rollback();
-            logger.LogError(e, "Error Applying Migration Script {scriptDescription}.", currentScript?.Description);
+            Log.Error(e, "Error Applying Migration Script {scriptDescription}.", currentScript?.Description);
             return false;
         }
     }
